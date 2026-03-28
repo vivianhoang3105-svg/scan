@@ -5,56 +5,50 @@ import io
 import fitz  # PyMuPDF
 import google.generativeai as genai
 
-# --- PHONG THỦY HỎA & KIM: SIÊU NỔI BẬT ---
+# --- GIAO DIỆN HỎA & KIM SIÊU CẤP ---
 st.set_page_config(page_title="Máy Quét Linh Linh", page_icon="🔥")
 
 st.markdown("""
     <style>
-    /* Nền trắng bạc */
     .stApp { background-color: #F8F9FA; }
+    h1 { color: #D32F2F !important; text-shadow: 2px 2px 4px #FFD700; }
+    div.stButton > button { background-color: #D32F2F !important; color: white !important; border: 2px solid #FFD700 !important; font-weight: bold; border-radius: 12px; }
     
-    /* Tiêu đề Đỏ Hỏa */
-    h1 { color: #D32F2F !important; text-shadow: 2px 2px 4px #FFD700; font-family: 'Arial'; }
-    
-    /* Nút bấm Đỏ viền Vàng */
-    div.stButton > button { 
-        background-color: #D32F2F !important; 
-        color: white !important; 
-        border: 2px solid #FFD700 !important; 
-        font-weight: bold; 
-        border-radius: 12px;
-        padding: 10px 24px;
-    }
-    
-    /* Khung text "ĐEN NỔI BẬT" - Đây nè bà ơi! */
+    /* KHUNG ĐEN CHỮ VÀNG - ĐÚNG GU BÀ THÍCH NÈ */
     .stTextArea textarea { 
-        background-color: #1E1E1E !important; /* Nền đen sâu */
-        color: #FFD700 !important; /* Chữ Vàng Kim cực nổi */
-        border: 2px solid #D32F2F !important; /* Viền đỏ rực */
-        font-size: 18px !important; 
-        font-family: 'Courier New', Courier, monospace;
+        background-color: #121212 !important; 
+        color: #FFD700 !important; 
+        border: 2px solid #D32F2F !important; 
+        font-size: 18px !important;
+        line-height: 1.6 !important;
     }
-    
-    /* Label tiêu đề khung */
-    .stTextArea label { color: #D32F2F !important; font-weight: bold; font-size: 20px; }
-    
-    /* Nút Tải file */
-    div.stDownloadButton > button { background-color: #FFD700 !important; color: #D32F2F !important; border: 2px solid #D32F2F !important; }
+    .stTextArea label { color: #D32F2F !important; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CẤU HÌNH AI: DÙNG MODEL "TÊN CHUẨN" ---
-api_key = st.secrets.get("GOOGLE_API_KEY")
-if api_key:
+# --- BỘ NÃO AI "ĐA NHÂN CÁCH" ---
+def get_ai_response(content):
+    api_key = st.secrets.get("GOOGLE_API_KEY")
+    if not api_key:
+        return None, "Chưa dán API Key vô Secrets bà ơi!"
+    
     genai.configure(api_key=api_key)
-    # Tui dùng model gemini-1.5-flash (bản ổn định nhất)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-else:
-    model = None
+    
+    # Danh sách các "anh" AI, hụt anh này tui gọi anh kia
+    model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro']
+    
+    for name in model_names:
+        try:
+            model = genai.GenerativeModel(name)
+            prompt = f"Hãy sửa lỗi chính tả và OCR cho văn bản sau, giữ nguyên ý nghĩa, chỉ trả về kết quả:\n\n{content}"
+            response = model.generate_content(prompt)
+            return response.text, None
+        except Exception:
+            continue # Anh này bận thì gọi anh tiếp theo
+    
+    return None, "Tất cả các anh AI đều đang đi vắng, bà dùng bản thô nhé!"
 
-st.title("🔥 Máy Quét Linh Linh (Bản Siêu Cấp)")
-st.write("Quét xong AI tự sửa lỗi, chữ nghĩa nổi bần bật luôn!")
-
+st.title("🔥 Máy Quét Linh Linh (Bản Quyết Chiến)")
 uploaded_files = st.file_uploader("Kéo thả Ảnh hoặc PDF vào đây", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=True)
 
 if uploaded_files:
@@ -62,7 +56,7 @@ if uploaded_files:
         all_raw_text = ""
         images_to_show = []
 
-        with st.spinner("Đang 'luyện' chữ, đợi xíu nha..."):
+        with st.spinner("Đang 'luyện' chữ..."):
             try:
                 for file in uploaded_files:
                     if file.name.lower().endswith('.pdf'):
@@ -71,35 +65,29 @@ if uploaded_files:
                             page = doc.load_page(i)
                             pix = page.get_pixmap()
                             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                            images_to_show.append((img, f"PDF: {file.name} - Trang {i+1}"))
-                            text = pytesseract.image_to_string(img, lang='vie+eng')
-                            all_raw_text += f"\n{text}\n"
+                            images_to_show.append(img)
+                            all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
                     else:
-                        img = Image.open(file)
-                        img = ImageOps.exif_transpose(img)
-                        final_img = img.convert('RGB')
-                        images_to_show.append((final_img, f"Ảnh: {file.name}"))
-                        text = pytesseract.image_to_string(final_img, lang='vie+eng')
-                        all_raw_text += f"\n{text}\n"
+                        img = ImageOps.exif_transpose(Image.open(file)).convert('RGB')
+                        images_to_show.append(img)
+                        all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
 
                 # 1. Hiện ảnh
-                st.subheader("🖼️ Ảnh gốc của bà:")
-                for pic, cap in images_to_show:
-                    st.image(pic, caption=cap, use_column_width=True)
+                for pic in images_to_show:
+                    st.image(pic, width=500)
 
-                # 2. Hiện bản quét thô (Nếu AI lỗi thì bà vẫn có cái này xài)
-                st.text_area("📄 Văn bản quét được (Bản thô):", all_raw_text, height=250, key="raw")
+                # 2. Hiện bản thô (Luôn luôn có để xài)
+                st.text_area("📄 Văn bản quét được (Bản thô):", all_raw_text, height=250)
 
-                # 3. AI sửa lỗi (Bọc trong try-except để nếu lỗi nó không phá app)
-                if model and all_raw_text.strip():
-                    with st.spinner("Đang nhờ siêu AI Gemini sửa lỗi chính tả..."):
-                        try:
-                            prompt = f"Sửa hết lỗi chính tả và OCR (như 's j' thành 'số', 't' thành 'thành phố'...) trong đoạn sau. Trả về kết quả sạch đẹp:\n\n{all_raw_text}"
-                            response = model.generate_content(prompt)
-                            st.success("✨ AI ĐÃ SỬA LỖI XONG!")
-                            st.text_area("💎 VĂN BẢN HOÀN HẢO (Copy ở đây):", response.text, height=400, key="ai")
-                        except Exception as ai_err:
-                            st.error(f"AI đang bận, bà dùng bản thô ở trên nhé! (Lỗi: {ai_err})")
+                # 3. AI sửa lỗi chính tả
+                if all_raw_text.strip():
+                    with st.spinner("Đang ép AI nhấc máy sửa lỗi..."):
+                        corrected, error = get_ai_response(all_raw_text)
+                        if corrected:
+                            st.success("✨ AI ĐÃ SỬA XONG! HÀNG NGON ĐÂY BÀ:")
+                            st.text_area("💎 VĂN BẢN HOÀN HẢO:", corrected, height=450)
+                        else:
+                            st.warning(f"AI vẫn dỗi: {error}")
                 
             except Exception as e:
-                st.error(f"Lỗi hệ thống: {e}")
+                st.error(f"Lỗi: {e}")
