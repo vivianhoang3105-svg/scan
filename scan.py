@@ -7,7 +7,7 @@ import fitz  # PyMuPDF
 # Cài đặt giao diện chuẩn
 st.set_page_config(page_title="Máy Quét Văn Bản Pro", page_icon="📑")
 
-st.title("📑 Máy Quét Văn Bản Đa Năng")
+st.title("📑 Máy Quét Văn Bản Linh Linh")
 st.write("Hỗ trợ quét chữ từ Ảnh (JPG, PNG) và file PDF. Kết quả sẽ được gom thành 1 file PDF tổng hợp.")
 
 # Nút tải file
