@@ -4,58 +4,26 @@ import pytesseract
 import io
 import fitz  # PyMuPDF
 
-# --- PHẦN PHONG THỦY:---
-st.set_page_config(page_title="Máy Quét Linh Linh^^", page_icon="🔥")
+# Cài đặt giao diện chuẩn
+st.set_page_config(page_title="Máy Quét Văn Bản Pro", page_icon="📑")
 
-# Inject CSS để đổi màu giao diện
-st.markdown("""
-    <style>
-    /* Màu nền chính (Kim - Trắng Bạc) */
-    .stApp {
-        background-color: #F5F5F5;
-    }
-    /* Tiêu đề (Hỏa - Đỏ Rực) */
-    h1 {
-        color: #D32F2F !important;
-        text-shadow: 1px 1px 2px #FFD700; /* Viền vàng Kim */
-    }
-    /* Nút bấm (Hỏa - Đỏ) */
-    div.stButton > button {
-        background-color: #D32F2F !important;
-        color: white !important;
-        border-radius: 10px;
-        border: 2px solid #FFD700 !important; /* Viền vàng Kim */
-        font-weight: bold;
-    }
-    /* Nút download */
-    div.stDownloadButton > button {
-        background-color: #FFD700 !important; /* Vàng Kim */
-        color: #D32F2F !important; /* Chữ đỏ Hỏa */
-        border: 2px solid #D32F2F !important;
-    }
-    /* Khung text */
-    .stTextArea textarea {
-        border: 2px solid #D32F2F !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("🔥 Máy Quét Vạn Năng (Hỏa & Kim)")
-st.write("Giao diện đỏ rực may mắn, nền trắng bạc sang trọng dành riêng cho bà Linh!")
+st.title("📑 Máy Quét Văn Bản Đa Năng")
+st.write("Hỗ trợ quét chữ từ Ảnh (JPG, PNG) và file PDF. Kết quả sẽ được gom thành 1 file PDF tổng hợp.")
 
 # Nút tải file
-uploaded_files = st.file_uploader("Chọn Ảnh (.jpg, .png) hoặc file PDF", 
+uploaded_files = st.file_uploader("Kéo thả Ảnh hoặc file PDF vào đây", 
                                   type=["jpg", "jpeg", "png", "pdf"], 
                                   accept_multiple_files=True)
 
 if uploaded_files:
-    if st.button("Kích Hoạt Máy Quét 🚀"):
+    if st.button("Bắt đầu quét dữ liệu 🚀"):
         all_text = ""
         images_for_pdf = []
 
-        with st.spinner("Đang 'luyện' chữ, đợi tui xíu..."):
+        with st.spinner("Đang xử lý dữ liệu..."):
             try:
                 for file in uploaded_files:
+                    # Xử lý PDF
                     if file.name.lower().endswith('.pdf'):
                         doc = fitz.open(stream=file.read(), filetype="pdf")
                         for page_index in range(len(doc)):
@@ -65,25 +33,30 @@ if uploaded_files:
                             images_for_pdf.append(img)
                             text = pytesseract.image_to_string(img, lang='vie+eng')
                             all_text += f"\n\n--- PDF: {file.name} (Trang {page_index + 1}) ---\n\n{text}"
+                    
+                    # Xử lý Ảnh
                     else:
                         img = Image.open(file)
-                        img = ImageOps.exif_transpose(img)
+                        img = ImageOps.exif_transpose(img) # Tự xoay đúng chiều
                         final_image = img.convert('RGB')
                         images_for_pdf.append(final_image)
                         text = pytesseract.image_to_string(final_image, lang='vie+eng')
                         all_text += f"\n\n--- ẢNH: {file.name} ---\n\n{text}"
 
+                # Tạo nút tải PDF tổng hợp
                 if images_for_pdf:
                     pdf_output = io.BytesIO()
                     images_for_pdf[0].save(pdf_output, format='PDF', save_all=True, append_images=images_for_pdf[1:])
                     
-                    st.success("Luyện xong rồi! Hàng về đây bà!")
-                    st.download_button(label="📥 TẢI FILE PDF TỔNG HỢP (VÀNG KIM)", 
+                    st.success("Đã xử lý xong toàn bộ tài liệu!")
+                    st.download_button(label="📥 Tải file PDF tổng hợp", 
                                        data=pdf_output.getvalue(), 
                                        file_name="Ket_Qua_Quet.pdf")
                 
+                # Hiển thị văn bản để copy
                 st.text_area("Văn bản bóc tách được:", all_text, height=400)
                 
             except Exception as e:
-                st.error(f"Ối, có chút trục trặc: {e}")
-                       
+                st.error(f"Lỗi rồi bà ơi: {e}")
+
+                     
