@@ -16,14 +16,14 @@ st.markdown("""
     
     /* KHUNG ĐEN CHỮ VÀNG VIP */
     .stTextArea textarea { 
-        background-color: #fff8dc !important; 
+        background-color: #fffacd !important; 
         color: #ff0000 !important; 
-        border: 2px solid #D32F2F !important; 
+        border: 2px solid #fff0f5 !important; 
         font-size: 18px !important;
         font-family: 'Courier New', Courier, monospace; 
         line-height: 1.6 !important;
     }
-    .stTextArea label { color: #D32F2F !important; font-weight: bold; font-size: 20px; }
+    .stTextArea label { color:#000000 !important; font-weight: bold; font-size: 20px; }
     div.stDownloadButton > button { background-color: #008000 !important; color: #ffa500 !important; border: 2px solid #D32F2F !important; font-weight: bold;}
     </style>
     """, unsafe_allow_html=True)
