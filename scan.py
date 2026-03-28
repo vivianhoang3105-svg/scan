@@ -24,7 +24,7 @@ st.markdown("""
         line-height: 1.6 !important;
     }
     .stTextArea label { color: #D32F2F !important; font-weight: bold; font-size: 20px; }
-    div.stDownloadButton > button { background-color: #FFD700 !important; color: #D32F2F !important; border: 2px solid #D32F2F !important; font-weight: bold;}
+    div.stDownloadButton > button { background-color: #008000 !important; color: #ffa500 !important; border: 2px solid #D32F2F !important; font-weight: bold;}
     </style>
     """, unsafe_allow_html=True)
 
