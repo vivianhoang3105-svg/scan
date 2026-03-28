@@ -45,7 +45,7 @@ st.markdown("""
 # Bà phải lấy API Key của Gemini dán vô file bí mật nha (Tui hướng dẫn ở dưới)
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest') # Bản flash cho nhanh
+    gemini_model = genai.GenerativeModel('gemini-1.5-flash') # Bản flash cho nhanh
 except Exception as e:
     st.error(f"Ối, chưa cấu hình API Key cho Gemini rồi! (Lỗi: {e})")
     st.info("App vẫn quét được chữ nhưng sẽ KHÔNG tự sửa lỗi chính tả được nha.")
