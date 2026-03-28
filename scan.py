@@ -16,8 +16,8 @@ st.markdown("""
     
     /* KHUNG ĐEN CHỮ VÀNG VIP */
     .stTextArea textarea { 
-        background-color: #121212 !important; 
-        color: #FFD700 !important; 
+        background-color: #ffe4b5 !important; 
+        color: #ff0000 !important; 
         border: 2px solid #D32F2F !important; 
         font-size: 18px !important;
         font-family: 'Courier New', Courier, monospace; 
