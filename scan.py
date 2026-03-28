@@ -11,9 +11,13 @@ st.set_page_config(page_title="Máy Quét VIP Linh Linh", page_icon="🌿⚔️"
 
 st.markdown("""
     <style>
+    /* Đổi màu công tắc gạt sang Xanh Lá (Sở Nông nghiệp) */
+    div[data-testid="stWidgetToggle"] label div[data-checked="true"] {
+        background-color: #2E7D32 !important;
+    }
     .stApp { background-color: #FEFDF5; color: #333333; }
     h1 { color: #2E7D32 !important; text-shadow: 1px 1px 2px white; font-family: 'Segoe UI', sans-serif;}
-    p, div { color: #444444; }
+    p, { color: #444444; }
 
     /* Nút bấm Kích Hoạt */
     div.stButton > button { 
