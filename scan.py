@@ -6,7 +6,7 @@ import fitz  # PyMuPDF
 import google.generativeai as genai  # Thư viện Google AI
 
 # --- CẤU HÌNH PHONG THỦY: HỎA & KIM (RESTORE) ---
-st.set_page_config(page_title="Máy Quét Hợp Mệnh", page_icon="🔥🚀")
+st.set_page_config(page_title="Máy Quét Linh Linh", page_icon="🔥🚀")
 
 # Inject CSS để đổi màu giao diện
 st.markdown("""
@@ -51,7 +51,7 @@ except Exception as e:
     st.info("App vẫn quét được chữ nhưng sẽ KHÔNG tự sửa lỗi chính tả được nha.")
     gemini_model = None
 
-st.title("🔥 Máy Quét Vạn Năng Pro (Hỏa Kim + AI Sửa Lỗi)")
+st.title("🔥 Máy Quét Linh Linh pro)")
 st.write("Phiên bản đặc biệt rực rỡ may mắn, có siêu AI tự động sửa lỗi chính tả cho bà!")
 
 # Chấp nhận cả ảnh và PDF
