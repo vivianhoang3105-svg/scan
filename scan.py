@@ -12,7 +12,7 @@ st.markdown("""
     <style>
     .stApp { background-color: #F8F9FA; }
     h1 { color: #D32F2F! important; text-shadow: 2px 2px 4px #FFD700; font-family: 'Arial', sans-serif;}
-    div.stButton > button { background-color: #D32F2F !important; color: white !important; border: 2px solid #FFD700 !important; font-weight: bold; border-radius: 12px; padding: 10px 24px;}
+    div.stButton > button { background-color: #008000 !important; color: green !important; border: 2px solid #FFD700 !important; font-weight: bold; border-radius: 12px; padding: 10px 24px;}
     
     /* KHUNG ĐEN CHỮ VÀNG VIP */
     .stTextArea textarea { 
