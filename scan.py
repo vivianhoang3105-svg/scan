@@ -8,7 +8,7 @@ from docx import Document
 
 # --- 1. CẤU HÌNH TRANG ---
 st.set_page_config(page_title="Máy Quét VIP Linh Linh", page_icon="🌿⚔️")
-st.write("Fighting")
+
 # --- 2. GIAO DIỆN VÀ MÀU SẮC (CSS) ---
 st.markdown("""
     <style>
@@ -58,6 +58,10 @@ st.markdown("""
     }
     
     footer {visibility: hidden;}
+    /* Sơn Nút Gạt lúc TẮT (OFF) thành Xanh Lá Nhạt cho dễ nhìn */
+    div[data-testid="stWidgetToggle"] label div[data-checked="false"] {
+        background-color: #C8E6C9 !important; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -93,7 +97,7 @@ def create_word_file(text_content, title="VĂN BẢN TRÍCH XUẤT"):
 
 # --- 5. HIỂN THỊ TRÊN WEB ---
 st.title("🌿⚔️ Máy Quét VIP Linh Linh")
-st.write("Vũ khí số hóa văn bản của Nữ hoàng Thiên Phủ - An toàn tuyệt đối 100%!")
+st.write("an toàn chắc luôn!")
 
 uploaded_files = st.file_uploader("Kéo thả Ảnh hoặc PDF vào đây", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=True)
 
