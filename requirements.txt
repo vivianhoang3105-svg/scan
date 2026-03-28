@@ -1,5 +1,5 @@
 streamlit
 Pillow
 pytesseract
-pdf2image
 pymupdf
+google-generativeai
