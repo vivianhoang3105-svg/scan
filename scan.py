@@ -35,6 +35,7 @@ st.markdown("""
         padding: 10px 24px;
         transition: 0.3s;
     }
+    div.stButton > button p { color: white !important; }
     div.stButton > button:hover {
         background-color: #1B5E20 !important; /* Xanh đậm hơn khi hover */
         transform: scale(1.05);
