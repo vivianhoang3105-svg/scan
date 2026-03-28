@@ -8,7 +8,7 @@ from docx import Document
 
 # --- 1. CẤU HÌNH TRANG ---
 st.set_page_config(page_title="Máy Quét VIP Linh Linh", page_icon="🌿⚔️")
-
+st.write("Fighting")
 # --- 2. GIAO DIỆN VÀ MÀU SẮC (CSS) ---
 st.markdown("""
     <style>
@@ -26,6 +26,10 @@ st.markdown("""
         background-color: #2E7D32 !important; 
         border: 2px solid #A5D6A7 !important; 
         border-radius: 12px; 
+    }
+    /* Sơn Nút Gạt lúc TẮT (OFF) thành Xanh Lá Nhạt cho dễ nhìn */
+    div[data-testid="stWidgetToggle"] label div[data-checked="false"] {
+        background-color: #C8E6C9 !important; 
     }
     /* Chữ bên trong Nút Kích Hoạt là MÀU TRẮNG */
     div.stButton > button p { color: white !important; font-weight: bold; font-size: 16px !important; }
