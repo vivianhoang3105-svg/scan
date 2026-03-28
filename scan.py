@@ -5,7 +5,7 @@ import io
 import fitz  # PyMuPDF
 
 # --- PHẦN PHONG THỦY:---
-st.set_page_config(page_title="Máy Quét Hợp Mệnh", page_icon="🔥")
+st.set_page_config(page_title="Máy Quét Linh Linh^^", page_icon="🔥")
 
 # Inject CSS để đổi màu giao diện
 st.markdown("""
