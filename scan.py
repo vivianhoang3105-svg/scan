@@ -1,127 +1,269 @@
 import streamlit as st
-from PIL import Image, ImageOps
-import pytesseract
+import cv2
+import numpy as np
+from PIL import Image, ImageEnhance, ImageOps
 import io
-import fitz  # PyMuPDF
-import google.generativeai as genai
-from docx import Document
+import gc
+from streamlit_image_coordinates import streamlit_image_coordinates 
+from streamlit_cropper import st_cropper 
+from datetime import datetime
 
-# --- 1. CẤU HÌNH TRANG ---
-st.set_page_config(page_title="Máy Quét VIP Linh Linh", page_icon="🌿⚔️")
+# --- CẤU HÌNH GIAO DIỆN ---
+st.set_page_config(page_title="Scanner VIP Linh Linh", page_icon="👑", layout="wide")
 
-# --- 2. GIAO DIỆN VÀ MÀU SẮC (CSS) ---
-st.markdown("""
-    <style>
-    .stApp { background-color: #FEFDF5; }
-    h1 { color: #2E7D32 !important; text-shadow: 1px 1px 2px white; font-family: 'Segoe UI', sans-serif;}
-    p, label, .stMarkdown p { color: #2E7D32 !important; font-weight: 500; font-size: 16px; }
-    div.stButton > button { background-color: #2E7D32 !important; border: 2px solid #A5D6A7 !important; border-radius: 12px; }
-    div.stButton > button p { color: white !important; font-weight: bold; font-size: 16px !important; }
-    .stTextArea textarea { background-color: #FFFDF0 !important; color: #1A531A !important; border: 2px solid #2E7D32 !important; font-size: 17px !important; font-family: 'Segoe UI', sans-serif; }
-    .stTextArea label p { color: #2E7D32 !important; font-weight: bold; font-size: 18px !important; }
-    div.stDownloadButton > button { background-color: #E65100 !important; border: 2px solid #FFD700 !important; }
-    div.stDownloadButton > button p { color: white !important; font-weight: bold; font-size: 18px !important; }
-    div[data-testid="stWidgetToggle"] label div[data-checked="true"] { background-color: #2E7D32 !important; }
-    div[data-testid="stWidgetToggle"] label div[data-checked="false"] { background-color: #C8E6C9 !important; }
-    footer {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
+# --- CÁC HÀM XỬ LÝ LÕI ---
 
-# --- 3. BỘ NÃO AI GEMINI (Nâng cấp Prompt không bỏ sót chữ) ---
-def get_ai_response(content):
-    api_key = st.secrets.get("GOOGLE_API_KEY")
-    if not api_key: return None, "Chưa dán API Key vô Secrets"
-    genai.configure(api_key=api_key)
-    try:
-        target_model = None
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                if 'gemini' in m.name.lower() and 'vision' not in m.name.lower():
-                    target_model = m.name
-                    break
-        if not target_model: return None, "Không tìm thấy model AI."
-        model = genai.GenerativeModel(target_model)
+def order_points(pts):
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+    return rect
+
+def perspective_transform(image, pts):
+    rect = order_points(pts)
+    (tl, tr, br, bl) = rect
+    widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    maxWidth = max(int(widthA), int(widthB))
+    heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    maxHeight = max(int(heightA), int(heightB))
+    dst = np.array([[0, 0], [maxWidth - 1, 0], [maxWidth - 1, maxHeight - 1], [0, maxHeight - 1]], dtype="float32")
+    M = cv2.getPerspectiveTransform(rect, dst)
+    return cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+
+def apply_auto_rotate_stand(image_cv):
+    h, w = image_cv.shape[:2]
+    if w > h:
+        return cv2.rotate(image_cv, cv2.ROTATE_90_CLOCKWISE)
+    return image_cv
+
+def auto_scan_logic(file_bytes):
+    pil_orig = Image.open(io.BytesIO(file_bytes)).convert('RGB')
+    pil_orig = ImageOps.exif_transpose(pil_orig)
+    orig_w, orig_h = pil_orig.size
+    
+    pil_thumb = pil_orig.copy()
+    pil_thumb.thumbnail((1000, 1000), Image.Resampling.LANCZOS)
+    thumb_w, thumb_h = pil_thumb.size
+    
+    ratio_w = orig_w / thumb_w
+    ratio_h = orig_h / thumb_h
+    
+    image_thumb = cv2.cvtColor(np.array(pil_thumb), cv2.COLOR_RGB2BGR)
+    gray = cv2.cvtColor(image_thumb, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 50, 150)
+
+    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:5]
+
+    screenCnt = None
+    for c in cnts:
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+        if len(approx) == 4 and cv2.contourArea(c) > (image_thumb.shape[0] * image_thumb.shape[1] / 15):
+            screenCnt = approx
+            break
+
+    cv_orig = cv2.cvtColor(np.array(pil_orig), cv2.COLOR_RGB2BGR)
+    if screenCnt is not None:
+        screenCnt_real = screenCnt.astype("float32")
+        screenCnt_real[:, 0, 0] *= ratio_w
+        screenCnt_real[:, 0, 1] *= ratio_h
+        warped = perspective_transform(cv_orig, screenCnt_real.reshape(4, 2))
+    else:
+        warped = cv_orig
+
+    return apply_auto_rotate_stand(warped)
+
+def apply_filters_and_brightness(warped_img_cv, mode, brightness_val):
+    img_rgb = cv2.cvtColor(warped_img_cv, cv2.COLOR_BGR2RGB)
+    pil_img = Image.fromarray(img_rgb)
+    
+    if brightness_val != 1.0:
+        pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness_val)
+
+    if mode == "Quét Trắng Đen (B&W)":
+        pil_img = pil_img.convert('L')
+        if brightness_val == 1.0:
+            pil_img = ImageEnhance.Brightness(pil_img).enhance(1.2)
+        pil_img = ImageEnhance.Contrast(pil_img).enhance(1.8)
+        return pil_img.convert('RGB')
+    else:
+        pil_img = ImageEnhance.Contrast(pil_img).enhance(1.2)
+        return pil_img
+
+# --- TÍNH NĂNG MỚI: CHUẨN HÓA KÍCH THƯỚC GIẤY A4 ---
+def fit_to_a4(pil_img):
+    """Ép mọi loại ảnh về chuẩn kích thước giấy A4 quốc tế (2480x3508 pixel ở 300 DPI)"""
+    a4_w, a4_h = 2480, 3508
+    img_w, img_h = pil_img.size
+    
+    # Nếu ảnh đang nằm ngang thì xoay khổ giấy A4 thành nằm ngang
+    if img_w > img_h:
+        a4_w, a4_h = 3508, 2480
         
-        # THÁNH CHỈ MỚI CHO AI
-        prompt = f"""Dưới đây là dữ liệu văn bản được trích xuất. Chú ý: Đây có thể là một bảng biểu bị đọc lẫn lộn các cột.
-Nhiệm vụ của bạn:
-1. Sắp xếp lại logic câu chữ cho đúng ý nghĩa.
-2. TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT NỘI DUNG. Phải giữ lại mọi từ khóa và số liệu gốc.
-3. Nếu là dạng bảng, hãy trình bày lại dưới dạng danh sách (Bullet points) hoặc bảng rõ ràng để dễ đọc nhất.
+    # Tính toán tỷ lệ để phóng to ảnh vừa khít tờ A4 mà không bị méo chữ
+    ratio = min(a4_w / img_w, a4_h / img_h)
+    new_w = int(img_w * ratio)
+    new_h = int(img_h * ratio)
+    
+    resized_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    
+    # Tạo ra một tờ giấy A4 trắng tinh
+    a4_canvas = Image.new('RGB', (a4_w, a4_h), (255, 255, 255))
+    
+    # Dán bức ảnh vào chính giữa tờ giấy A4
+    offset_x = (a4_w - new_w) // 2
+    offset_y = (a4_h - new_h) // 2
+    a4_canvas.paste(resized_img, (offset_x, offset_y))
+    
+    return a4_canvas
 
-Văn bản gốc:
-{content}"""
-        response = model.generate_content(prompt)
-        return response.text, None
-    except Exception as e: return None, f"Lỗi AI: {str(e)}"
+# --- GIAO DIỆN CHÍNH ---
+st.markdown("<h1 style='text-align: center; color: #E91E63;'>👑 VIP Scanner Đẳng Cấp A4</h1>", unsafe_allow_html=True)
 
-# --- 4. HÀM TẠO FILE WORD ---
-def create_word_file(text_content, title="VĂN BẢN TRÍCH XUẤT"):
-    doc = Document()
-    doc.add_heading(title, 0)
-    doc.add_paragraph(text_content)
-    for paragraph in doc.paragraphs:
-        paragraph.paragraph_format.alignment = 0
-    bio = io.BytesIO()
-    doc.save(bio)
-    return bio.getvalue()
-
-# --- 5. HIỂN THỊ TRÊN WEB ---
-st.title("🌿⚔️ Máy Quét VIP Linh Linh")
-st.write("An toàn tuyệt đối 100%!")
-
-uploaded_files = st.file_uploader("Kéo thả Ảnh hoặc PDF vào đây", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=True)
-
-use_ai = st.toggle("✨ Bật chế độ AI sửa lỗi (Lưu ý: Dữ liệu sẽ được gửi qua Google AI để xử lý)", value=False)
+uploaded_files = st.file_uploader("📤 Thêm ảnh vào đây", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
 
 if uploaded_files:
-    if st.button("Kích Hoạt Máy Quét 🚀"):
-        all_raw_text = ""
-        images_to_show = []
+    final_pages = []
+    
+    for i, file in enumerate(uploaded_files):
+        with st.expander(f"Trang {i+1}: {file.name}", expanded=(i == 0)):
+            
+            file_key = f"pts_{file.name}_{file.size}"
+            if file_key not in st.session_state:
+                st.session_state[file_key] = []
+            
+            col_img, col_ctrl = st.columns([2, 1])
+            
+            with col_ctrl:
+                st.write("🔧 **Căn chỉnh:**")
+                manual_mode = st.checkbox(f"📍 Sửa thủ công (Máy quét sai mới dùng)", key=f"manual_{i}")
+                
+                tool_choice = "Kéo khung đỏ (Điện thoại)" 
+                if manual_mode:
+                    tool_choice = st.radio("Đang dùng thiết bị gì?", 
+                                         ["Kéo khung đỏ (Điện thoại)", "Chấm 4 góc (Máy tính)"], 
+                                         key=f"tool_{i}")
+                
+                color_mode = st.radio(f"Chọn màu", ["Quét Trắng Đen (B&W)", "Giữ màu gốc"], key=f"color_{i}")
+                brightness = st.slider(f"☀️ Độ sáng", 0.5, 2.0, 1.0, 0.1, key=f"bright_{i}")
+                rotate_extra = st.selectbox(f"🔄 Xoay thêm", ["Chuẩn rồi", "Xoay 90°", "Xoay 180°", "Xoay 270°"], key=f"rot_{i}")
 
-        with st.spinner("Đang soi từng nét chữ, đợi xíu nha..."):
-            try:
-                for file in uploaded_files:
-                    if file.name.lower().endswith('.pdf'):
-                        doc = fitz.open(stream=file.read(), filetype="pdf")
-                        for page_index in range(len(doc)):
-                            page = doc.load_page(page_index)
-                            
-                            # 1. Hiển thị ảnh
-                            pix = page.get_pixmap()
-                            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                            images_to_show.append((img, f"PDF: {file.name} (T{page_index+1})"))
-                            
-                            # 2. CÔNG NGHỆ RÚT CHỮ THÔNG MINH (Chống rớt bảng biểu)
-                            extracted_text = page.get_text() # Thử lấy chữ trực tiếp từ PDF
-                            if len(extracted_text.strip()) > 50:
-                                all_raw_text += f"\n{extracted_text}\n" # Nếu có chữ thật -> Xài luôn, 100% chính xác!
+            with col_img:
+                if manual_mode:
+                    if "Kéo khung" in tool_choice:
+                        st.info("📲 Kéo khung để chọn vùng (Cắt trên bản nháp, xử lý trên bản gốc).")
+                        
+                        file_bytes = file.getvalue()
+                        pil_original = Image.open(io.BytesIO(file_bytes)).convert('RGB')
+                        pil_original = ImageOps.exif_transpose(pil_original)
+                        orig_w, orig_h = pil_original.size
+                        
+                        pil_display = pil_original.copy()
+                        pil_display.thumbnail((350, 2000), Image.Resampling.LANCZOS)
+                        disp_w, disp_h = pil_display.size
+                        
+                        ratio_w = orig_w / disp_w
+                        ratio_h = orig_h / disp_h
+                        
+                        try:
+                            box = st_cropper(pil_display, realtime_update=True, box_color='#FF0000', aspect_ratio=None, return_type='box', key=f"cropper_{i}")
+                            if box:
+                                real_left = int(box['left'] * ratio_w)
+                                real_top = int(box['top'] * ratio_h)
+                                real_right = int((box['left'] + box['width']) * ratio_w)
+                                real_bottom = int((box['top'] + box['height']) * ratio_h)
+                                
+                                cropped_pil_real = pil_original.crop((real_left, real_top, real_right, real_bottom))
+                                img_cv_base = cv2.cvtColor(np.array(cropped_pil_real), cv2.COLOR_RGB2BGR)
                             else:
-                                # Nếu là PDF scan ảnh -> Dùng Tesseract soi
-                                all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
+                                img_cv_base = cv2.cvtColor(np.array(pil_original), cv2.COLOR_RGB2BGR)
+                                
+                        except Exception:
+                            st.warning("Đang tải khung, đợi 1 giây nha...")
+                            img_cv_base = cv2.cvtColor(np.array(pil_original), cv2.COLOR_RGB2BGR)
+
+                        img_cv_final = apply_auto_rotate_stand(img_cv_base)
+                        
                     else:
-                        img = ImageOps.exif_transpose(Image.open(file)).convert('RGB')
-                        images_to_show.append((img, f"Ảnh: {file.name}"))
-                        all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
+                        st.info("💻 Click chuột vào 4 góc để nắn phẳng.")
+                        
+                        file_bytes = file.getvalue()
+                        pil_original = Image.open(io.BytesIO(file_bytes)).convert('RGB')
+                        pil_original = ImageOps.exif_transpose(pil_original)
+                        orig_w, orig_h = pil_original.size
+                        
+                        pil_display = pil_original.copy()
+                        pil_display.thumbnail((800, 1200), Image.Resampling.LANCZOS)
+                        disp_w, disp_h = pil_display.size
+                        
+                        ratio_w = orig_w / disp_w
+                        ratio_h = orig_h / disp_h
+                        
+                        cv_display = cv2.cvtColor(np.array(pil_display), cv2.COLOR_RGB2BGR)
+                        
+                        for pt in st.session_state[file_key]:
+                            cv2.circle(cv_display, pt, max(5, int(cv_display.shape[1]/50)), (0, 0, 255), -1)
+                        pil_to_show = Image.fromarray(cv2.cvtColor(cv_display, cv2.COLOR_BGR2RGB))
+                        
+                        value = streamlit_image_coordinates(pil_to_show, key=f"coord_{i}")
+                        
+                        if value is not None:
+                            clicked_pt = (value['x'], value['y'])
+                            if clicked_pt not in st.session_state[file_key] and len(st.session_state[file_key]) < 4:
+                                st.session_state[file_key].append(clicked_pt)
+                                st.rerun()
 
-                for pic, cap in images_to_show:
-                    st.image(pic, caption=cap, width=500)
+                        if st.button("🔄 Xóa điểm để chấm lại", key=f"reset_{i}"):
+                            st.session_state[file_key] = []
+                            st.rerun()
 
-                st.text_area("📄 Văn Bản Thô (Bảo mật 100% nội bộ):", all_raw_text, height=250)
-                raw_word_bytes = create_word_file(all_raw_text, "VĂN BẢN THÔ - BẢO MẬT")
-                st.download_button(label="📥 TẢI XUỐNG BẢN THÔ (.docx)", data=raw_word_bytes, file_name="VanBan_Tho.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-
-                if use_ai and all_raw_text.strip():
-                    st.divider()
-                    with st.spinner("Đang kết nối AI Gemini để dọn dẹp chính tả..."):
-                        corrected, error = get_ai_response(all_raw_text)
-                        if corrected:
-                            st.success("✨ AI ĐÃ SỬA XONG MƯỢT MÀ!")
-                            st.text_area("💎 VĂN BẢN HOÀN HẢO (Đã qua AI):", corrected, height=450)
-                            ai_word_bytes = create_word_file(corrected, "VĂN BẢN ĐÃ QUA AI CHỈNH SỬA")
-                            st.download_button(label="📥 TẢI XUỐNG BẢN ĐÃ QUA AI (.docx)", data=ai_word_bytes, file_name="VanBan_AI.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                        else:
-                            st.warning(f"AI đang bận: {error}")
+                        if len(st.session_state[file_key]) == 4:
+                            real_pts = [(int(pt[0]*ratio_w), int(pt[1]*ratio_h)) for pt in st.session_state[file_key]]
+                            pts = np.array(real_pts, dtype="float32")
                             
-            except Exception as e:
-                st.error(f"Lỗi hệ thống: {e}")
+                            cv_original_real = cv2.cvtColor(np.array(pil_original), cv2.COLOR_RGB2BGR)
+                            warped_manual = perspective_transform(cv_original_real, pts)
+                            img_cv_final = apply_auto_rotate_stand(warped_manual)
+                            st.success("Đã khóa 4 góc!")
+                        else:
+                            st.warning(f"Đã chấm {len(st.session_state[file_key])}/4 góc.")
+                            img_cv_final = apply_auto_rotate_stand(cv2.cvtColor(np.array(pil_original), cv2.COLOR_RGB2BGR))
+                else:
+                    img_cv_final = auto_scan_logic(file.getvalue())
+
+                final_pil = apply_filters_and_brightness(img_cv_final, color_mode, brightness)
+                
+                if rotate_extra == "Xoay 90°": final_pil = final_pil.rotate(-90, expand=True)
+                elif rotate_extra == "Xoay 180°": final_pil = final_pil.rotate(180)
+                elif rotate_extra == "Xoay 270°": final_pil = final_pil.rotate(90, expand=True)
+
+                st.write("**Kết quả trang này:**")
+                st.image(final_pil, use_column_width=True)
+                final_pages.append(final_pil)
+
+    st.write("---")
+    if st.button("🚀 GOM TẤT CẢ VÀ TẠO FILE PDF", use_container_width=True, type="primary"):
+        if final_pages:
+            with st.spinner("Đang trải giấy A4 và đóng gói PDF..."):
+                now = datetime.now().strftime("%d-%m_%Hh%M")
+                file_name_custom = f"VIP_Scan_{now}.pdf"
+
+                # --- SỬ DỤNG MA THUẬT A4 TRƯỚC KHI XUẤT ---
+                a4_pages = [fit_to_a4(img) for img in final_pages]
+
+                pdf_io = io.BytesIO()
+                a4_pages[0].save(pdf_io, format="PDF", save_all=True, append_images=a4_pages[1:], resolution=300.0, quality=100)
+                
+                st.balloons()
+                st.success(f"Hoàn tất! Tên file: {file_name_custom}")
+                st.download_button(label="📥 TẢI PDF VỀ MÁY", data=pdf_io.getvalue(), file_name=file_name_custom, mime="application/pdf", use_container_width=True)
+
+    gc.collect()
