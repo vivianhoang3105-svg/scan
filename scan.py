@@ -68,7 +68,7 @@ def create_word_file(text_content, title="VĂN BẢN TRÍCH XUẤT"):
 
 # --- 5. HIỂN THỊ TRÊN WEB ---
 st.title("🌿⚔️ Máy Quét VIP Linh Linh")
-st.write("Vũ khí số hóa văn bản của Nữ hoàng Thiên Phủ - An toàn tuyệt đối 100%!")
+st.write("An toàn tuyệt đối 100%!")
 
 uploaded_files = st.file_uploader("Kéo thả Ảnh hoặc PDF vào đây", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=True)
 
