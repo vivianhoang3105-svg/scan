@@ -29,21 +29,21 @@ st.markdown("""
 
 # --- 3. BỘ NÃO AI GEMINI (Nâng cấp Prompt không bỏ sót chữ) ---
 def get_ai_response(content):
-api_key = st.secrets.get("GOOGLE_API_KEY")
-if not api_key: return None, "Chưa dán API Key vô Secrets"
-genai.configure(api_key=api_key)
-try:
-target_model = None
-for m in genai.list_models():
-if 'generateContent' in m.supported_generation_methods:
-if 'gemini' in m.name.lower() and 'vision' not in m.name.lower():
-target_model = m.name
-break
-if not target_model: return None, "Không tìm thấy model AI."
-model = genai.GenerativeModel(target_model)
+    api_key = st.secrets.get("GOOGLE_API_KEY")
+    if not api_key: return None, "Chưa dán API Key vô Secrets"
+    genai.configure(api_key=api_key)
+    try:
+        target_model = None
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                if 'gemini' in m.name.lower() and 'vision' not in m.name.lower():
+                    target_model = m.name
+                    break
+        if not target_model: return None, "Không tìm thấy model AI."
+        model = genai.GenerativeModel(target_model)
         
-# THÁNH CHỈ MỚI CHO AI
-prompt = f"""Dưới đây là dữ liệu văn bản được trích xuất. Chú ý: Đây có thể là một bảng biểu bị đọc lẫn lộn các cột.
+        # THÁNH CHỈ MỚI CHO AI
+        prompt = f"""Dưới đây là dữ liệu văn bản được trích xuất. Chú ý: Đây có thể là một bảng biểu bị đọc lẫn lộn các cột.
 Nhiệm vụ của bạn:
 1. Sắp xếp lại logic câu chữ cho đúng ý nghĩa.
 2. TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT NỘI DUNG. Phải giữ lại mọi từ khóa và số liệu gốc.
@@ -75,51 +75,53 @@ uploaded_files = st.file_uploader("Kéo thả Ảnh hoặc PDF vào đây", type
 use_ai = st.toggle("✨ Bật chế độ AI sửa lỗi (Lưu ý: Dữ liệu sẽ được gửi qua Google AI để xử lý)", value=False)
 
 if uploaded_files:
-if st.button("Kích Hoạt Máy Quét 🚀"):
-all_raw_text = ""
-images_to_show = []
+    if st.button("Kích Hoạt Máy Quét 🚀"):
+        all_raw_text = ""
+        images_to_show = []
 
-with st.spinner("Đang soi từng nét chữ, đợi xíu nha..."):
-try:
-for file in uploaded_files:
-if file.name.lower().endswith('.pdf'):
-doc = fitz.open(stream=file.read(), filetype="pdf")
-for page_index in range(len(doc)):
-page = doc.load_page(page_index)
- 
- # 1. Hiển thị ảnh
-pix = page.get_pixmap()
-img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-images_to_show.append((img, f"PDF: {file.name} (T{page_index+1})"))
+        with st.spinner("Đang soi từng nét chữ, đợi xíu nha..."):
+            try:
+                for file in uploaded_files:
+                    if file.name.lower().endswith('.pdf'):
+                        doc = fitz.open(stream=file.read(), filetype="pdf")
+                        for page_index in range(len(doc)):
+                            page = doc.load_page(page_index)
                             
-# 2. CÔNG NGHỆ RÚT CHỮ THÔNG MINH (Chống rớt bảng biểu)
-extracted_text = page.get_text() # Thử lấy chữ trực tiếp từ PDF
-if len(extracted_text.strip()) > 50:
-all_raw_text += f"\n{extracted_text}\n" # Nếu có chữ thật -> Xài luôn, 100% chính xác!
-else:
-# Nếu là PDF scan ảnh -> Dùng Tesseract soi
-all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
-else:
-img = ImageOps.exif_transpose(Image.open(file)).convert('RGB')
-images_to_show.append((img, f"Ảnh: {file.name}"))
-all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
+                            # 1. Hiển thị ảnh
+                            pix = page.get_pixmap()
+                            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                            images_to_show.append((img, f"PDF: {file.name} (T{page_index+1})"))
+                            
+                            # 2. CÔNG NGHỆ RÚT CHỮ THÔNG MINH (Chống rớt bảng biểu)
+                            extracted_text = page.get_text() # Thử lấy chữ trực tiếp từ PDF
+                            if len(extracted_text.strip()) > 50:
+                                all_raw_text += f"\n{extracted_text}\n" # Nếu có chữ thật -> Xài luôn, 100% chính xác!
+                            else:
+                                # Nếu là PDF scan ảnh -> Dùng Tesseract soi
+                                all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
+                    else:
+                        img = ImageOps.exif_transpose(Image.open(file)).convert('RGB')
+                        images_to_show.append((img, f"Ảnh: {file.name}"))
+                        all_raw_text += f"\n{pytesseract.image_to_string(img, lang='vie+eng')}\n"
 
-for pic, cap in images_to_show:
- st.image(pic, caption=cap, width=500)
+                for pic, cap in images_to_show:
+                    st.image(pic, caption=cap, width=500)
 
-st.text_area("📄 Văn Bản Thô (Bảo mật 100% nội bộ):", all_raw_text, height=250)
-raw_word_bytes = create_word_file(all_raw_text, "VĂN BẢN THÔ - BẢO MẬT")
-st.download_button(label="📥 TẢI XUỐNG BẢN THÔ (.docx)", data=raw_word_bytes, file_name="VanBan_Tho.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
- if use_ai and all_raw_text.strip():
-st.divider()
-with st.spinner("Đang kết nối AI Gemini để dọn dẹp chính tả..."):
-corrected, error = get_ai_response(all_raw_text)
-if corrected:
-st.success("✨ AI ĐÃ SỬA XONG MƯỢT MÀ!")
-st.text_area("💎 VĂN BẢN HOÀN HẢO (Đã qua AI):", corrected, height=450)
-ai_word_bytes = create_word_file(corrected, "VĂN BẢN ĐÃ QUA AI CHỈNH SỬA")
-st.download_button(label="📥 TẢI XUỐNG BẢN ĐÃ QUA AI (.docx)", data=ai_word_bytes, file_name="VanBan_AI.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-else:
-st.warning(f"AI đang bận: {error}")
-except Exception as e:
-st.error(f"Lỗi hệ thống: {e}")
+                st.text_area("📄 Văn Bản Thô (Bảo mật 100% nội bộ):", all_raw_text, height=250)
+                raw_word_bytes = create_word_file(all_raw_text, "VĂN BẢN THÔ - BẢO MẬT")
+                st.download_button(label="📥 TẢI XUỐNG BẢN THÔ (.docx)", data=raw_word_bytes, file_name="VanBan_Tho.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+                if use_ai and all_raw_text.strip():
+                    st.divider()
+                    with st.spinner("Đang kết nối AI Gemini để dọn dẹp chính tả..."):
+                        corrected, error = get_ai_response(all_raw_text)
+                        if corrected:
+                            st.success("✨ AI ĐÃ SỬA XONG MƯỢT MÀ!")
+                            st.text_area("💎 VĂN BẢN HOÀN HẢO (Đã qua AI):", corrected, height=450)
+                            ai_word_bytes = create_word_file(corrected, "VĂN BẢN ĐÃ QUA AI CHỈNH SỬA")
+                            st.download_button(label="📥 TẢI XUỐNG BẢN ĐÃ QUA AI (.docx)", data=ai_word_bytes, file_name="VanBan_AI.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                        else:
+                            st.warning(f"AI đang bận: {error}")
+                            
+            except Exception as e:
+                st.error(f"Lỗi hệ thống: {e}")
